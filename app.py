@@ -229,10 +229,10 @@ with col_left:
 
     # Before starting, show input fields for Device and Session Note.
     if not st.session_state.session_started:
-        st.session_state.device = st.text_input("Device", value=st.session_state.device)
+        st.session_state.device = st.text_input("WeBe Device ID", value=st.session_state.device)
         st.session_state.note = st.text_input("Session Note", value=st.session_state.note)
     else:
-        st.write(f"Device: **{st.session_state.device}**")
+        st.write(f"WeBe Device ID: **{st.session_state.device}**")
         st.write(f"Session Note: **{st.session_state.note}**")
     
     st.markdown(
@@ -244,7 +244,7 @@ with col_left:
     if not st.session_state.session_started:
         if st.button("Start Session"):
             if st.session_state.device.strip() == "" or st.session_state.note.strip() == "":
-                st.error("Please enter both Device and Session Note before starting.")
+                st.error("Please enter both WeBe Device ID and Session Note before starting.")
             else:
                 st.session_state.schedule = build_schedule(datetime.datetime.now())
                 st.session_state.session_started = True
