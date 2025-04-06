@@ -20,9 +20,9 @@ DETAILED_TASKS = [
     # Standing Baseline (9 min total)
     {"name": "Standing Baseline - Adaptation",                 "duration": 180},
     {"name": "Standing Baseline - BP Measurement 1",           "duration": 30},
-    {"name": "Standing Baseline - Baseline Collection",        "duration": 135},
+    {"name": "Standing Baseline - Baseline Collection 1",        "duration": 135},
     {"name": "Standing Baseline - BP Measurement 2",           "duration": 30},
-    {"name": "Standing Baseline - Baseline Collection",        "duration": 135},
+    {"name": "Standing Baseline - Baseline Collection 2",        "duration": 135},
     {"name": "Standing Baseline - BP Measurement 3",           "duration": 30},
     # Breath-Holding: 3 cycles (200s each) -> total 10 min
     {"name": "Breath-Holding Cycle #1", "duration": 200},
@@ -33,7 +33,7 @@ DETAILED_TASKS = [
     {"name": "Treadmill Exercise - Jogging Phase",               "duration": 630},
     {"name": "Treadmill Exercise - Post-Jogging BP Measurement", "duration": 30},
     {"name": "Treadmill Exercise - Cool Down Phase",             "duration": 180},
-    {"name": "Treadmill Exercise - Final Measurement",           "duration": 30},
+    {"name": "Treadmill Exercise - Final BP Measurement",           "duration": 30},
     # Recovery Phase (10 min total)
     {"name": "Recovery - Baseline Collection Part 1",        "duration": 270},
     {"name": "Recovery - BP Measurement at 5 Minutes",       "duration": 30},
@@ -59,9 +59,9 @@ PHASE_GROUPS = [
     {"title": "Standing Baseline (9 min)", "subtasks": [
         "Standing Baseline - Adaptation",
         "Standing Baseline - BP Measurement 1",
-        "Standing Baseline - Baseline Collection",
+        "Standing Baseline - Baseline Collection 1",
         "Standing Baseline - BP Measurement 2",
-        "Standing Baseline - Baseline Collection",
+        "Standing Baseline - Baseline Collection 2",
         "Standing Baseline - BP Measurement 3"
     ]},
     {"title": "Breath-Holding Task (10 min)", "subtasks": [
@@ -74,7 +74,7 @@ PHASE_GROUPS = [
         "Treadmill Exercise - Jogging Phase",
         "Treadmill Exercise - Post-Jogging BP Measurement",
         "Treadmill Exercise - Cool Down Phase",
-        "Treadmill Exercise - Final Measurement"
+        "Treadmill Exercise - Final BP Measurement"
     ]},
     {"title": "Recovery Phase (10 min)", "subtasks": [
         "Recovery - Baseline Collection Part 1",
@@ -222,7 +222,7 @@ st.title("data collection")
 col_left, col_right = st.columns([2, 3])
 
 with col_left:
-    st.header("Current Timeline")
+    st.header("Time")
     now = datetime.datetime.now()
     utc_now = datetime.datetime.now(datetime.timezone.utc)
     effective_now = st.session_state.pause_start_time if st.session_state.paused and st.session_state.pause_start_time else now
@@ -264,7 +264,13 @@ with col_left:
                 unsafe_allow_html=True
             )
             st.write(f"Ends at: **{task['planned_end'].strftime('%H:%M:%S')}**")
-        
+        # Check if the next task is a BP measurement task.
+        next_idx = get_current_task_index(effective_now) + 1
+        if next_idx < len(schedule):
+            next_task = schedule[next_idx]
+            if "BP Measurement" in next_task["name"]:
+                st.markdown("<span style='color:red; font-weight:bold;'>Please prepare for the next BP measurement!</span>", unsafe_allow_html=True)
+
         if not st.session_state.paused:
             if not st.session_state.confirm_end_task:
                 if st.button("End This Task Early"):
@@ -287,7 +293,7 @@ with col_left:
             st.info("Cannot end task early while paused.")
 
 with col_right:
-    st.header("Detailed Task Timeline")
+    st.header("Tasks")
     schedule = st.session_state.schedule
     current_phase_index = get_current_phase_index(now)
     group_to_indexes, subtask_to_group = build_group_mappings(schedule)
@@ -321,17 +327,28 @@ with col_right:
 # --------------------------------------------------
 if st.session_state.session_started and get_current_task_index(datetime.datetime.now()) >= len(st.session_state.schedule):
     df = pd.DataFrame(st.session_state.schedule)
-    # Convert datetime objects to strings
-    df['planned_start'] = df['planned_start'].apply(lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S"))
-    df['planned_end'] = df['planned_end'].apply(lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S"))
+    
+    # Add bp_flag column using the original planned_start/end difference.
+    # Compute the difference (in seconds) by converting the planned_start/end back to string format.
+    df['bp_flag'] = df.apply(lambda row: 1 if ("BP Measurement" in row['name']) else 0, axis=1)
+    
+    # Remove the duration column.
+    df.drop(columns=['duration'], inplace=True)
+    
+    # Rename columns.
+    df.rename(columns={'planned_start': 'start', 'planned_end': 'end'}, inplace=True)
+    
+    df['start'] = df['start'].apply(lambda dt: dt.strftime("%Y%m%d_%H%M%S"))
+    df['end'] = df['end'].apply(lambda dt: dt.strftime("%Y%m%d_%H%M%S"))
+    
     csv_data = df.to_csv(index=False)
     
-    # Get overall start and end timestamps for the file name.
+    # Get overall start and end timestamps for file name.
     start_ts = st.session_state.schedule[0]["planned_start"].strftime("%Y%m%d_%H%M%S")
     end_ts = st.session_state.schedule[-1]["planned_end"].strftime("%Y%m%d_%H%M%S")
     device = st.session_state.device.strip().replace(" ", "_") or "device"
     note = st.session_state.note.strip().replace(" ", "_") or "note"
-    file_name = f"{device}_{note}_{start_ts}_{end_ts}_schedule.csv"
+    file_name = f"{device}_{note}_{start_ts}_{end_ts}.csv"
     
     st.download_button("Download Schedule", data=csv_data, file_name=file_name, mime="text/csv")
     
@@ -350,6 +367,7 @@ if st.session_state.session_started and get_current_task_index(datetime.datetime
         height=0,
     )
     st.stop()
+
 
 else:
     time.sleep(1)
